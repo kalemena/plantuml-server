@@ -147,6 +147,10 @@ public class ProxyServlet extends HttpServlet {
         if (con instanceof HttpsURLConnection) {
             // printHttpsCert((HttpsURLConnection) con);
         }
+
+        con.setInstanceFollowRedirects(true);
+        HttpURLConnection.setFollowRedirects(true);
+
         con.setRequestMethod("GET");
         String token = System.getenv("HTTP_AUTHORIZATION");
         if (token != null) {
