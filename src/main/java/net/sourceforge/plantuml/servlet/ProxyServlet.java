@@ -62,6 +62,7 @@ public class ProxyServlet extends HttpServlet {
         if ("true".equalsIgnoreCase(System.getenv("ALLOW_PLANTUML_INCLUDE"))) {
             OptionFlags.ALLOW_INCLUDE = true;
         }
+        HttpURLConnection.setFollowRedirects(true);
     }
 
     @Override
@@ -142,21 +143,45 @@ public class ProxyServlet extends HttpServlet {
         return FileFormat.PNG;
     }
 
+    private boolean isRedirect(final HttpURLConnection con) throws IOException {
+        // normally, 3xx is redirect
+        int status = con.getResponseCode();
+        System.out.println("Response Code ... " + status);
+        if (status != HttpURLConnection.HTTP_OK) {
+            if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                || status == HttpURLConnection.HTTP_MOVED_PERM
+                    || status == HttpURLConnection.HTTP_SEE_OTHER) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private HttpURLConnection getConnection(final URL url) throws IOException {
-        final HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        System.out.println("Request URL ... " + url);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
         if (con instanceof HttpsURLConnection) {
             // printHttpsCert((HttpsURLConnection) con);
         }
-
-        con.setInstanceFollowRedirects(true);
-        HttpURLConnection.setFollowRedirects(true);
-
         con.setRequestMethod("GET");
         String token = System.getenv("HTTP_AUTHORIZATION");
         if (token != null) {
             con.setRequestProperty("Authorization", token);
         }
         con.setReadTimeout(10000); // 10 seconds
+        con.setInstanceFollowRedirects(true);
+
+        while (isRedirect(con)) {
+            String newUrl = con.getHeaderField("Location");
+            String cookies = con.getHeaderField("Set-Cookie");
+
+            // open the new connnection again
+            con = (HttpURLConnection) new URL(newUrl).openConnection();
+            con.setRequestProperty("Cookie", cookies);
+
+            System.out.println("Redirect to URL : " + newUrl);
+        }
+
         con.connect();
         return con;
     }
